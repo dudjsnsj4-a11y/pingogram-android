@@ -18,7 +18,9 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.semantics
@@ -47,6 +49,8 @@ import dev.kyralabs.pingogram.core.ui.sticker.LocalAnimatedStickers
 import dev.kyralabs.pingogram.core.ui.text.LocalPhoneNumbersHidden
 import dev.kyralabs.pingogram.core.ui.theme.PingogramTheme
 import dev.kyralabs.pingogram.core.ui.theme.isDark
+import dev.kyralabs.pingogram.credentials.ApiCredentialsScreen
+import dev.kyralabs.pingogram.credentials.ApiCredentialsStore
 import dev.kyralabs.pingogram.feature.calls.Calls
 import dev.kyralabs.pingogram.feature.chat.ui.share.ShareInbox
 import dev.kyralabs.pingogram.feature.settings.ui.lockedchats.LockedChatGate
@@ -64,6 +68,7 @@ import dev.kyralabs.pingogram.ui.LockableApp
 import dev.kyralabs.pingogram.ui.PingogramApp
 import dev.kyralabs.pingogram.ui.rememberLinkUriHandler
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -148,6 +153,10 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var phoneNumberVisibility: PhoneNumberVisibilityRepository
 
+    /** The Telegram API credentials TDLib signs in with; without any, the first screen asks for them. */
+    @Inject
+    lateinit var apiCredentials: ApiCredentialsStore
+
     /** The chats kept behind the passcode, which the conversation's gate reads ([LocalLockedChatGate]). */
     @Inject
     lateinit var chatLock: ChatLockRepository
@@ -220,26 +229,50 @@ class MainActivity : ComponentActivity() {
                     val locked = lock == LockState.Locked
                     val secureRequests = remember { SecureWindowRequests() }
                     val lockedChatGate = remember { lockedChatGate(chatLock.hiddenChatIds) }
+                    // The build may ship without API credentials (a fork's debug APK), and anyone can enter their own
+                    // before the first login; TDLib starts only once they are there (PingogramApplication).
+                    val credentialsConfigured = remember { apiCredentials.isConfigured() }
+                    var credentialsTimedOut by remember { mutableStateOf(false) }
+                    LaunchedEffect(uiState, credentialsConfigured) {
+                        credentialsTimedOut = false
+                        if (credentialsConfigured && uiState == MainActivityUiState.Loading) {
+                            delay(API_CREDENTIALS_TIMEOUT_MS)
+                            credentialsTimedOut = viewModel.uiState.value == MainActivityUiState.Loading
+                        }
+                    }
                     SecureWindowEffect(locked = locked, hideContent = hideContent, requests = secureRequests)
                     AppTheme(settings) {
-                        CompositionLocalProvider(
-                            LocalAnimatedStickers provides animatedStickers,
-                            LocalSecureWindow provides secureRequests,
-                            // Telegram links tapped in the app open in it (LinkUriHandler).
-                            LocalUriHandler provides rememberLinkUriHandler(links, uiState),
-                            // The conversation's and the profile's call buttons, and "Call back" (feature:calls).
-                            LocalCallStarter provides calls,
-                            // A chat's voice chat bar and its info page's voice chat row (feature:calls).
-                            LocalVoiceChats provides calls,
-                            LocalPhoneNumbersHidden provides phoneNumbersHidden,
-                            // A locked chat asks for the passcode before it shows (docs/adr/0029-locked-chats.md).
-                            LocalLockedChatGate provides lockedChatGate,
-                        ) {
-                            LockableApp(
-                                locked = locked,
-                                lockScreen = { AppLockRoute() },
-                                modifier = Modifier.semantics { testTagsAsResourceId = true },
-                            ) { App(uiState, viewModel, links, shares, accountMenu) }
+                        if (!credentialsConfigured || credentialsTimedOut) {
+                            ApiCredentialsScreen(
+                                initialApiId = if (credentialsConfigured) apiCredentials.apiId() else null,
+                                initialApiHash = if (credentialsConfigured) apiCredentials.apiHash() else "",
+                                showTimeoutMessage = credentialsTimedOut,
+                                onSave = { apiId, apiHash ->
+                                    apiCredentials.save(apiId, apiHash)
+                                    restartApp()
+                                },
+                                onContinue = ::restartApp,
+                            )
+                        } else {
+                            CompositionLocalProvider(
+                                LocalAnimatedStickers provides animatedStickers,
+                                LocalSecureWindow provides secureRequests,
+                                // Telegram links tapped in the app open in it (LinkUriHandler).
+                                LocalUriHandler provides rememberLinkUriHandler(links, uiState),
+                                // The conversation's and the profile's call buttons, and "Call back" (feature:calls).
+                                LocalCallStarter provides calls,
+                                // A chat's voice chat bar and its info page's voice chat row (feature:calls).
+                                LocalVoiceChats provides calls,
+                                LocalPhoneNumbersHidden provides phoneNumbersHidden,
+                                // A locked chat asks for the passcode before it shows (docs/adr/0029-locked-chats.md).
+                                LocalLockedChatGate provides lockedChatGate,
+                            ) {
+                                LockableApp(
+                                    locked = locked,
+                                    lockScreen = { AppLockRoute() },
+                                    modifier = Modifier.semantics { testTagsAsResourceId = true },
+                                ) { App(uiState, viewModel, links, shares, accountMenu) }
+                            }
                         }
                     }
                 }
@@ -284,6 +317,16 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         accountRestart.onNewIntent(intent)
+    }
+
+    /** Starts the app again in a new process, so TDLib reads the API credentials the user just saved. */
+    private fun restartApp() {
+        packageManager.getLaunchIntentForPackage(packageName)?.let { intent ->
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+            startActivity(intent)
+        }
+        finishAffinity()
+        android.os.Process.killProcess(android.os.Process.myPid())
     }
 
     /**
@@ -352,6 +395,9 @@ class MainActivity : ComponentActivity() {
         // 10), which androidx.activity does not expose: the platform's light and dark navigation bar scrims.
         val LIGHT_SCRIM = Color.argb(0xe6, 0xFF, 0xFF, 0xFF)
         val DARK_SCRIM = Color.argb(0x80, 0x1b, 0x1b, 0x1b)
+
+        /** How long TDLib may stay at `WaitTdlibParameters` before the credentials screen offers to change them. */
+        const val API_CREDENTIALS_TIMEOUT_MS = 12_000L
     }
 }
 

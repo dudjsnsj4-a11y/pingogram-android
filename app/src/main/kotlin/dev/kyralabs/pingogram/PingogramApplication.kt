@@ -19,6 +19,7 @@ import dev.kyralabs.pingogram.core.notifications.ShareTargetShortcuts
 import dev.kyralabs.pingogram.core.notifications.StorageOptimization
 import dev.kyralabs.pingogram.core.tdlib.TdlibClient
 import dev.kyralabs.pingogram.core.ui.theme.warmUpGoogleSansFlex
+import dev.kyralabs.pingogram.credentials.ApiCredentialsStore
 import dev.kyralabs.pingogram.feature.calls.Calls
 import dev.kyralabs.pingogram.startup.StartupTrace
 import dev.kyralabs.pingogram.startup.asyncTraceSection
@@ -35,6 +36,10 @@ class PingogramApplication :
     Configuration.Provider {
     @Inject
     lateinit var tdlibClient: TdlibClient
+
+    /** The Telegram API credentials TDLib signs in with; without any, the first screen asks for them. */
+    @Inject
+    lateinit var apiCredentials: ApiCredentialsStore
 
     /**
      * The accounts' graphs (`docs/adr/0031-multiple-accounts.md`). Making an account's caches subscribes each to
@@ -114,8 +119,11 @@ class PingogramApplication :
         applicationScope.launch { warmUpGoogleSansFlex(this@PingogramApplication) }
         startInBackground()
         // Creates the TDLib client and sends its parameters on a background dispatcher, so TDLib is ready by the
-        // first frame (docs/PERFORMANCE.md §2); returns immediately.
-        StartupTrace.section(StartupTrace.TDLIB_START) { tdlibClient.start() }
+        // first frame (docs/PERFORMANCE.md §2); returns immediately. Without API credentials there is nothing to
+        // send: the first screen asks for them, and saving restarts the app with them.
+        if (apiCredentials.isConfigured()) {
+            StartupTrace.section(StartupTrace.TDLIB_START) { tdlibClient.start() }
+        }
     }
 
     /**

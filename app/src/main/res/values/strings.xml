@@ -2,6 +2,19 @@
 <resources>
     <string name="app_name" translatable="false">Pingogram</string>
 
+    <!-- The first screen when the build has no Telegram API credentials (or the user asks to change them): the
+         values TDLib signs in with, created by the user at my.telegram.org -->
+    <string name="api_credentials_title">Telegram API credentials</string>
+    <string name="api_credentials_intro">Pingogram signs in with a Telegram API ID and hash. Create your own application at my.telegram.org, then enter its values here. They stay on this device.</string>
+    <string name="api_credentials_open_site">Open my.telegram.org</string>
+    <string name="api_credentials_id_label">API ID</string>
+    <string name="api_credentials_hash_label">API hash</string>
+    <string name="api_credentials_save">Save and restart</string>
+    <string name="api_credentials_continue">Continue without changes</string>
+    <string name="api_credentials_error_id">The API ID must be a positive number.</string>
+    <string name="api_credentials_error_hash">The API hash must be exactly 32 hexadecimal characters.</string>
+    <string name="api_credentials_timeout">TDLib did not start with these credentials. Check them and try again.</string>
+
     <!-- Navigation bar and rail labels -->
     <string name="nav_chats">Chats</string>
     <string name="nav_contacts">Contacts</string>
