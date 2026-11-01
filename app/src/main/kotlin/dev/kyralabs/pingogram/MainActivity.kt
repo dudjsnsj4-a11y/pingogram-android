@@ -1,5 +1,7 @@
 package dev.kyralabs.pingogram
 
+import android.app.AlarmManager
+import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
@@ -248,8 +250,9 @@ class MainActivity : ComponentActivity() {
                                 initialApiHash = if (credentialsConfigured) apiCredentials.apiHash() else "",
                                 showTimeoutMessage = credentialsTimedOut,
                                 onSave = { apiId, apiHash ->
-                                    apiCredentials.save(apiId, apiHash)
-                                    restartApp()
+                                    apiCredentials.save(apiId, apiHash).also { saved ->
+                                        if (saved) restartApp()
+                                    }
                                 },
                                 onContinue = ::restartApp,
                             )
@@ -319,12 +322,30 @@ class MainActivity : ComponentActivity() {
         accountRestart.onNewIntent(intent)
     }
 
-    /** Starts the app again in a new process, so TDLib reads the API credentials the user just saved. */
+    /**
+     * Starts the app again in a new process, so TDLib reads the API credentials the user just saved. The alarm holds
+     * the launch after this process dies: starting the activity here would start it in the process that is about to
+     * be killed.
+     */
     private fun restartApp() {
-        packageManager.getLaunchIntentForPackage(packageName)?.let { intent ->
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-            startActivity(intent)
-        }
+        val intent =
+            Intent(this, MainActivity::class.java).apply {
+                action = Intent.ACTION_MAIN
+                addCategory(Intent.CATEGORY_LAUNCHER)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+            }
+        val pendingIntent =
+            PendingIntent.getActivity(
+                this,
+                RESTART_REQUEST_CODE,
+                intent,
+                PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+        val alarmManager = getSystemService(AlarmManager::class.java)
+        // Inexact on purpose: an exact alarm would need SCHEDULE_EXACT_ALARM, and the screen is on, so this fires at
+        // once anyway.
+        val triggerAt = System.currentTimeMillis() + RESTART_DELAY_MS
+        alarmManager.setAndAllowWhileIdle(AlarmManager.RTC, triggerAt, pendingIntent)
         finishAffinity()
         android.os.Process.killProcess(android.os.Process.myPid())
     }
@@ -398,6 +419,12 @@ class MainActivity : ComponentActivity() {
 
         /** How long TDLib may stay at `WaitTdlibParameters` before the credentials screen offers to change them. */
         const val API_CREDENTIALS_TIMEOUT_MS = 12_000L
+
+        /** How long the restart alarm waits before it starts the app again, after this process dies. */
+        const val RESTART_DELAY_MS = 250L
+
+        /** The restart alarm's request code. */
+        const val RESTART_REQUEST_CODE = 1
     }
 }
 

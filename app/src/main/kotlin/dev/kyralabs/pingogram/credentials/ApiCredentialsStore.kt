@@ -1,5 +1,6 @@
 package dev.kyralabs.pingogram.credentials
 
+import android.annotation.SuppressLint
 import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.kyralabs.pingogram.BuildConfig
@@ -28,16 +29,22 @@ class ApiCredentialsStore
         /** Whether TDLib can start with these credentials: a positive id and a 32-character hexadecimal hash. */
         fun isConfigured(): Boolean = isValid(apiId(), apiHash())
 
+        /**
+         * Stores the credentials and waits until they are on disk: the caller restarts the process right after, and
+         * [android.content.SharedPreferences.Editor.apply]'s asynchronous write would be lost with it.
+         *
+         * @return whether the write succeeded.
+         */
+        @SuppressLint("CommitPrefEdits") // The process is killed right after: apply()'s write would be lost.
         fun save(
             apiId: Int,
             apiHash: String,
-        ) {
+        ): Boolean =
             preferences
                 .edit()
                 .putInt(KEY_API_ID, apiId)
                 .putString(KEY_API_HASH, apiHash)
-                .apply()
-        }
+                .commit()
 
         companion object {
             private const val FILE_NAME = "api_credentials"

@@ -45,7 +45,7 @@ fun ApiCredentialsScreen(
     initialApiId: Int?,
     initialApiHash: String,
     showTimeoutMessage: Boolean,
-    onSave: (apiId: Int, apiHash: String) -> Unit,
+    onSave: (apiId: Int, apiHash: String) -> Boolean,
     onContinue: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -130,12 +130,21 @@ fun ApiCredentialsScreen(
                             !ApiCredentialsStore.isValid(apiId, apiHash) -> Error.InvalidHash
                             else -> null
                         }
-                    if (error == null && apiId != null) onSave(apiId, apiHash)
+                    if (error == null && apiId != null && !onSave(apiId, apiHash)) {
+                        error = Error.Storage
+                    }
                 },
                 enabled = apiIdText.isNotBlank() && apiHashText.isNotBlank(),
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(stringResource(R.string.api_credentials_save))
+            }
+            if (error == Error.Storage) {
+                Text(
+                    text = stringResource(R.string.api_credentials_error_storage),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error,
+                )
             }
             if (showTimeoutMessage) {
                 TextButton(onClick = onContinue, modifier = Modifier.fillMaxWidth()) {
@@ -149,6 +158,7 @@ fun ApiCredentialsScreen(
 private enum class Error {
     InvalidId,
     InvalidHash,
+    Storage,
 }
 
 private const val API_HASH_LENGTH = 32
