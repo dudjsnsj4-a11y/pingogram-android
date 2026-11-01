@@ -74,7 +74,7 @@ fun ApiCredentialsScreen(
                 text = stringResource(R.string.api_credentials_intro),
                 style = MaterialTheme.typography.bodyLarge,
             )
-            TextButton(onClick = { uriHandler.tryOpen("https://my.telegram.org/apps") }) {
+            TextButton(onClick = { uriHandler.openUri("https://my.telegram.org/apps") }) {
                 Text(stringResource(R.string.api_credentials_open_site))
             }
             if (showTimeoutMessage) {
