@@ -1,0 +1,115 @@
+package dev.kyralabs.pingogram.core.ui.theme
+
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.AnimatedContentTransitionScope.SlideDirection
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.material3.MotionScheme
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import kotlin.math.sign
+
+/**
+ * How far content travels in a Material shared axis transition (`docs/DESIGN_SYSTEM.md` §5): it slides this distance
+ * while it fades, on a `MaterialTheme.motionScheme` spatial spring.
+ */
+val SharedAxisDistance: Dp = 30.dp
+
+/**
+ * Material's shared axis on X (§5), for a screen pushed above another and back: the incoming screen slides in by
+ * [distance] pixels ([SharedAxisDistance]) on the [motionScheme]'s default spatial spring and fades in on its default
+ * effects spring, from the end edge going [forward] and from the start edge going back, as the outgoing one leaves the
+ * other way with [sharedAxisXExit]. Start and end follow the layout direction, so right-to-left layouts mirror it.
+ */
+fun AnimatedContentTransitionScope<*>.sharedAxisXEnter(
+    motionScheme: MotionScheme,
+    distance: Int,
+    forward: Boolean,
+): EnterTransition =
+    slideIntoContainer(
+        towards = if (forward) SlideDirection.Start else SlideDirection.End,
+        animationSpec = motionScheme.defaultSpatialSpec(),
+        initialOffset = { fullOffset -> fullOffset.sign * distance },
+    ) + fadeIn(motionScheme.defaultEffectsSpec())
+
+/**
+ * The outgoing half of a shared axis on X ([sharedAxisXEnter]): the screen slides [distance] pixels towards the start
+ * going [forward], towards the end going back, on the default spatial spring, and fades out on the fast effects spring.
+ */
+fun AnimatedContentTransitionScope<*>.sharedAxisXExit(
+    motionScheme: MotionScheme,
+    distance: Int,
+    forward: Boolean,
+): ExitTransition =
+    slideOutOfContainer(
+        towards = if (forward) SlideDirection.Start else SlideDirection.End,
+        animationSpec = motionScheme.defaultSpatialSpec(),
+        targetOffset = { fullOffset -> fullOffset.sign * distance },
+    ) + fadeOut(motionScheme.fastEffectsSpec())
+
+/**
+ * Material's fade-through (§5), between content of the same level (tabs, folders): the incoming content fades in on
+ * the [motionScheme]'s default effects spring while it grows from [FADE_THROUGH_INITIAL_SCALE] on its default spatial
+ * spring, as the outgoing content leaves with [fadeThroughExit]. Springs cannot be delayed, so the faster exit spring
+ * stands in for the spec's sequential timing.
+ */
+fun fadeThroughEnter(motionScheme: MotionScheme): EnterTransition =
+    fadeIn(motionScheme.defaultEffectsSpec()) +
+        scaleIn(motionScheme.defaultSpatialSpec(), initialScale = FADE_THROUGH_INITIAL_SCALE)
+
+/** The outgoing half of a fade-through ([fadeThroughEnter]): a fade out on the [motionScheme]'s fast effects spring. */
+fun fadeThroughExit(motionScheme: MotionScheme): ExitTransition = fadeOut(motionScheme.fastEffectsSpec())
+
+/** The scale incoming content grows from in a fade-through ([fadeThroughEnter]): 92%. */
+const val FADE_THROUGH_INITIAL_SCALE = 0.92f
+
+/**
+ * The screen a predictive back gesture leaves (§5): it shrinks to 90% on the [motionScheme]'s default spatial spring
+ * and dissolves on its slow effects spring, over the screen it goes back to, which shows as it is
+ * ([predictiveBackPopEnter]).
+ *
+ * Navigation seeks the transition with the gesture's progress, playing it as far into its springs' time as the gesture
+ * has come, and after the release plays the rest at the same pace. So the springs set how it follows the finger: the
+ * screen shrinks and fades early in the gesture, and what remains after the release is short and still visible, ending
+ * with the screen gone rather than cut. The default effects spring would have faded the screen to a fifth by 30% of
+ * the gesture, so the fade takes the slow one.
+ */
+fun predictiveBackPopExit(motionScheme: MotionScheme): ExitTransition =
+    scaleOut(motionScheme.defaultSpatialSpec(), targetScale = PREDICTIVE_BACK_MIN_SCALE) +
+        fadeOut(motionScheme.slowEffectsSpec())
+
+/**
+ * The screen a predictive back gesture goes back to ([predictiveBackPopExit]): already in place and opaque beneath the
+ * one leaving, so a single layer fades.
+ */
+fun predictiveBackPopEnter(): EnterTransition = EnterTransition.None
+
+/**
+ * The scale of a surface that follows a predictive back gesture (§5): from 100% down to 90% as the gesture
+ * [progress]es from 0 to 1, along Material's back-progress curve, the one Material 3 components apply to back events.
+ */
+fun predictiveBackScale(progress: Float): Float =
+    1f - (1f - PREDICTIVE_BACK_MIN_SCALE) * PredictiveBackEasing.transform(progress.coerceIn(0f, 1f))
+
+/**
+ * Scales this content with a predictive back gesture ([predictiveBackScale]). [progress] is read in the draw phase,
+ * so following the gesture never recomposes (`docs/PERFORMANCE.md` §4).
+ */
+fun Modifier.predictiveBackScale(progress: () -> Float): Modifier =
+    graphicsLayer {
+        val scale = predictiveBackScale(progress())
+        scaleX = scale
+        scaleY = scale
+    }
+
+private const val PREDICTIVE_BACK_MIN_SCALE = 0.9f
+
+// androidx.compose.material3.internal.PredictiveBack: the curve of Material's predictive back motion.
+private val PredictiveBackEasing = CubicBezierEasing(0.1f, 0.1f, 0f, 1f)

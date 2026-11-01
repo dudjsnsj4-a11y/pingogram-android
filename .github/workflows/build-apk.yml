@@ -1,0 +1,51 @@
+name: Build APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  JAVA_VERSION: "17"
+
+jobs:
+  apk:
+    name: debug apk
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up JDK
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-provider: basic
+
+      - name: Write secrets.properties
+        env:
+          TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
+          TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
+        run: |
+          printf 'TELEGRAM_API_ID=%s\nTELEGRAM_API_HASH=%s\n' \
+            "${TELEGRAM_API_ID:-0}" "${TELEGRAM_API_HASH:-00000000000000000000000000000000}" \
+            > secrets.properties
+
+      - name: Assemble debug APK
+        run: ./gradlew :app:assembleFossDebug --stacktrace --no-daemon
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: pingogram-foss-debug
+          path: app/build/outputs/apk/foss/debug/*.apk
+          retention-days: 14

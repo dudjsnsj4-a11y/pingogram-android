@@ -1,0 +1,534 @@
+package dev.kyralabs.pingogram.feature.settings.ui
+
+import androidx.lifecycle.SavedStateHandle
+import dev.kyralabs.pingogram.core.common.result.DomainError
+import dev.kyralabs.pingogram.core.data.repository.TdlibAuthRepository
+import dev.kyralabs.pingogram.core.data.repository.TdlibCountryRepository
+import dev.kyralabs.pingogram.core.data.repository.TdlibUserRepository
+import dev.kyralabs.pingogram.core.domain.model.DeviceAccount
+import dev.kyralabs.pingogram.core.domain.model.User
+import dev.kyralabs.pingogram.core.domain.model.UserStatus
+import dev.kyralabs.pingogram.core.domain.model.UserType
+import dev.kyralabs.pingogram.core.tdlib.AuthState
+import dev.kyralabs.pingogram.core.tdlib.ConnectionState
+import dev.kyralabs.pingogram.core.tdlib.TdError
+import dev.kyralabs.pingogram.core.tdlib.TdResult
+import dev.kyralabs.pingogram.core.tdlib.TdlibServers
+import dev.kyralabs.pingogram.core.testing.FakeDeviceAccountsRepository
+import dev.kyralabs.pingogram.core.testing.FakeTdlibClient
+import dev.kyralabs.pingogram.core.testing.TdApiFixtures
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import org.drinkless.tdlib.TdApi
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Test
+import kotlin.time.Duration.Companion.seconds
+
+@OptIn(ExperimentalCoroutinesApi::class)
+class SettingsViewModelTest {
+    private val client = FakeTdlibClient(authState = AuthState.Ready, connectionState = ConnectionState.Ready)
+    private val savedState = SavedStateHandle()
+
+    @BeforeEach
+    fun setUp() {
+        Dispatchers.setMain(StandardTestDispatcher())
+    }
+
+    @AfterEach
+    fun tearDown() {
+        Dispatchers.resetMain()
+    }
+
+    // Through the real TDLib repositories on FakeTdlibClient, as the app wires them. The user repository subscribes to
+    // TDLib's updates before the test emits any, as it does at app start.
+    private fun TestScope.viewModel(
+        handle: SavedStateHandle = savedState,
+        users: TdlibUserRepository = TdlibUserRepository(client, backgroundScope),
+        deviceAccounts: FakeDeviceAccountsRepository = FakeDeviceAccountsRepository(isAvailable = false),
+    ): SettingsViewModel =
+        SettingsViewModel(
+            handle,
+            TdlibAuthRepository(client, StandardTestDispatcher(testScheduler)),
+            users,
+            TdlibCountryRepository(client),
+            deviceAccounts,
+        ).also { runCurrent() }
+
+    private suspend fun TestScope.announceMe(user: TdApi.User) {
+        client.emit(TdApiFixtures.updateUser(user))
+        client.emit(TdApiFixtures.myIdOption(user.id))
+        runCurrent()
+    }
+
+    private fun answerPhoneNumberInfo(
+        callingCode: String,
+        formattedNumber: String,
+    ) = client.on(
+        TdApi.GetPhoneNumberInfo::class,
+        TdResult.Success(TdApi.PhoneNumberInfo(null, callingCode, formattedNumber, false)),
+    )
+
+    private fun TestScope.effectsOf(viewModel: SettingsViewModel): List<SettingsEffect> {
+        val effects = mutableListOf<SettingsEffect>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.effects.toList(effects) }
+        return effects
+    }
+
+    private fun TestScope.send(
+        viewModel: SettingsViewModel,
+        vararg events: SettingsEvent,
+    ) {
+        events.forEach {
+            viewModel.onEvent(it)
+            runCurrent()
+        }
+    }
+
+    private fun answerLogOut(result: TdResult<TdApi.Ok>) = client.on(TdApi.LogOut::class, result)
+
+    private fun failure(
+        code: Int,
+        message: String,
+    ) = TdResult.Failure(TdError(code, message))
+
+    private val SettingsViewModel.state get() = uiState.value
+
+    @Test
+    fun `starts with neither the confirmation nor progress`() =
+        runTest {
+            assertEquals(SettingsUiState(), viewModel().state)
+        }
+
+    @Test
+    fun `log out asks for confirmation first`() =
+        runTest {
+            val viewModel = viewModel()
+
+            send(viewModel, SettingsEvent.LogOut)
+
+            assertEquals(SettingsUiState(isLogOutDialogOpen = true), viewModel.state)
+            assertTrue(client.sent.isEmpty())
+        }
+
+    @Test
+    fun `dismissing the confirmation logs nothing out`() =
+        runTest {
+            val viewModel = viewModel()
+
+            send(viewModel, SettingsEvent.LogOut, SettingsEvent.DismissLogOut)
+
+            assertEquals(SettingsUiState(), viewModel.state)
+            assertTrue(client.sent.isEmpty())
+        }
+
+    @Test
+    fun `confirming logs out and shows progress until TDLib answers`() =
+        runTest {
+            val answer = CompletableDeferred<TdResult<TdApi.Ok>>()
+            client.on(TdApi.LogOut::class) { answer.await() }
+            val viewModel = viewModel()
+
+            send(viewModel, SettingsEvent.LogOut, SettingsEvent.ConfirmLogOut)
+
+            assertEquals(1, client.sentOf<TdApi.LogOut>().size)
+            assertEquals(SettingsUiState(isLoggingOut = true), viewModel.state)
+        }
+
+    @Test
+    fun `tapping log out again while logging out sends one logout`() =
+        runTest {
+            client.on(TdApi.LogOut::class) { CompletableDeferred<TdResult<TdApi.Ok>>().await() }
+            val viewModel = viewModel()
+
+            send(viewModel, SettingsEvent.LogOut, SettingsEvent.ConfirmLogOut, SettingsEvent.ConfirmLogOut)
+            send(viewModel, SettingsEvent.LogOut)
+
+            assertEquals(1, client.sentOf<TdApi.LogOut>().size)
+            assertEquals(SettingsUiState(isLoggingOut = true), viewModel.state)
+        }
+
+    @Test
+    fun `progress stays after TDLib accepted the logout, until the app leaves for the login flow`() =
+        runTest {
+            answerLogOut(TdResult.Success(TdApi.Ok()))
+            val viewModel = viewModel()
+            val effects = effectsOf(viewModel)
+
+            send(viewModel, SettingsEvent.LogOut, SettingsEvent.ConfirmLogOut)
+
+            assertTrue(viewModel.state.isLoggingOut)
+            assertTrue(effects.isEmpty())
+        }
+
+    @Test
+    fun `no answer in time shows a network error and allows another try`() =
+        runTest {
+            client.on(TdApi.LogOut::class) { CompletableDeferred<TdResult<TdApi.Ok>>().await() }
+            val viewModel = viewModel()
+            val effects = effectsOf(viewModel)
+            send(viewModel, SettingsEvent.LogOut, SettingsEvent.ConfirmLogOut)
+
+            advanceTimeBy(REQUEST_TIMEOUT)
+            runCurrent()
+
+            assertEquals(listOf(SettingsEffect.ShowError(DomainError.Network)), effects)
+            assertEquals(SettingsUiState(), viewModel.state)
+        }
+
+    @Test
+    fun `a flood wait shows how long to wait`() =
+        runTest {
+            answerLogOut(failure(code = 429, message = "Too Many Requests: retry after 42"))
+            val viewModel = viewModel()
+            val effects = effectsOf(viewModel)
+
+            send(viewModel, SettingsEvent.LogOut, SettingsEvent.ConfirmLogOut)
+
+            assertEquals(listOf(SettingsEffect.ShowError(DomainError.FloodWait(42))), effects)
+            assertFalse(viewModel.state.isLoggingOut)
+        }
+
+    @Test
+    fun `an unauthorized session shows the error`() =
+        runTest {
+            answerLogOut(failure(code = 401, message = "Unauthorized"))
+            val viewModel = viewModel()
+            val effects = effectsOf(viewModel)
+
+            send(viewModel, SettingsEvent.LogOut, SettingsEvent.ConfirmLogOut)
+
+            assertEquals(listOf(SettingsEffect.ShowError(DomainError.Unauthorized)), effects)
+            assertFalse(viewModel.state.isLoggingOut)
+        }
+
+    @Test
+    fun `a silent error shows nothing`() =
+        runTest {
+            answerLogOut(failure(code = 406, message = "Silent"))
+            val viewModel = viewModel()
+            val effects = effectsOf(viewModel)
+
+            send(viewModel, SettingsEvent.LogOut, SettingsEvent.ConfirmLogOut)
+
+            assertTrue(effects.isEmpty())
+            assertFalse(viewModel.state.isLoggingOut)
+        }
+
+    @Test
+    fun `can log out again after a failure`() =
+        runTest {
+            answerLogOut(failure(code = 400, message = "Already logging out"))
+            val viewModel = viewModel()
+            send(viewModel, SettingsEvent.LogOut, SettingsEvent.ConfirmLogOut)
+            answerLogOut(TdResult.Success(TdApi.Ok()))
+
+            send(viewModel, SettingsEvent.LogOut, SettingsEvent.ConfirmLogOut)
+
+            assertEquals(2, client.sentOf<TdApi.LogOut>().size)
+            assertTrue(viewModel.state.isLoggingOut)
+        }
+
+    @Test
+    fun `shows no account until TDLib announces the logged-in user`() =
+        runTest {
+            val users = TdlibUserRepository(client, backgroundScope)
+            val viewModel = viewModel(users = users)
+            client.emit(TdApiFixtures.updateUser(TdApiFixtures.user(id = 7)))
+            runCurrent()
+
+            assertNull(viewModel.state.account)
+        }
+
+    @Test
+    fun `shows the logged-in account with its phone number formatted by TDLib`() =
+        runTest {
+            answerPhoneNumberInfo(callingCode = "44", formattedNumber = "7911 123456")
+            val viewModel = viewModel()
+
+            announceMe(
+                TdApiFixtures.user(
+                    id = 7,
+                    firstName = "Ada",
+                    lastName = "Lovelace",
+                    usernames = listOf("ada", "countess"),
+                    phoneNumber = "447911123456",
+                ),
+            )
+
+            assertEquals(
+                AccountUiModel(
+                    userId = 7,
+                    name = "Ada Lovelace",
+                    photo = null,
+                    phoneNumber = "+44 7911 123456",
+                    username = "ada",
+                ),
+                viewModel.state.account,
+            )
+            assertEquals("447911123456", client.sentOf<TdApi.GetPhoneNumberInfo>().single().phoneNumberPrefix)
+        }
+
+    @Test
+    fun `shows the phone number's digits while TDLib formats it`() =
+        runTest {
+            val answer = CompletableDeferred<TdResult<TdApi.PhoneNumberInfo>>()
+            client.on(TdApi.GetPhoneNumberInfo::class) { answer.await() }
+            val viewModel = viewModel()
+
+            announceMe(TdApiFixtures.user(id = 7, phoneNumber = "447911123456"))
+
+            assertEquals("+447911123456", viewModel.state.account?.phoneNumber)
+        }
+
+    @Test
+    fun `the card says Test server only while signed in on Telegram's test servers`() =
+        runTest {
+            answerPhoneNumberInfo(callingCode = "", formattedNumber = "")
+            val viewModel = viewModel()
+            announceMe(TdApiFixtures.user(id = 7, phoneNumber = "9996621234"))
+            assertEquals(false, viewModel.state.account?.isOnTestServers)
+
+            client.servers.value = TdlibServers.Test
+            runCurrent()
+            assertEquals(true, viewModel.state.account?.isOnTestServers)
+
+            client.servers.value = TdlibServers.Production
+            runCurrent()
+            assertEquals(false, viewModel.state.account?.isOnTestServers)
+        }
+
+    @Test
+    fun `keeps the phone number's digits when TDLib cannot format it`() =
+        runTest {
+            answerPhoneNumberInfo(callingCode = "", formattedNumber = "")
+            val viewModel = viewModel()
+
+            announceMe(TdApiFixtures.user(id = 7, phoneNumber = "8881234"))
+
+            assertEquals("+8881234", viewModel.state.account?.phoneNumber)
+        }
+
+    @Test
+    fun `keeps the phone number's digits when TDLib fails`() =
+        runTest {
+            val viewModel = viewModel()
+
+            announceMe(TdApiFixtures.user(id = 7, phoneNumber = "447911123456"))
+
+            assertEquals("+447911123456", viewModel.state.account?.phoneNumber)
+        }
+
+    @Test
+    fun `an account without a username or phone number shows neither`() =
+        runTest {
+            val viewModel = viewModel()
+
+            announceMe(TdApiFixtures.user(id = 7, firstName = "Ada", usernames = emptyList(), phoneNumber = ""))
+
+            val account = viewModel.state.account
+            assertEquals("Ada" to "", account?.name to account?.phoneNumber)
+            assertNull(account?.username)
+            assertTrue(client.sentOf<TdApi.GetPhoneNumberInfo>().isEmpty())
+        }
+
+    @Test
+    fun `shows whether the account subscribes to Telegram Premium and follows changes`() =
+        runTest {
+            val viewModel = viewModel()
+            announceMe(TdApiFixtures.user(id = 7, isPremium = false))
+            assertEquals(false, viewModel.state.account?.isPremium)
+
+            client.emit(TdApiFixtures.updateUser(TdApiFixtures.user(id = 7, isPremium = true)))
+            runCurrent()
+
+            assertEquals(true, viewModel.state.account?.isPremium)
+        }
+
+    @Test
+    fun `follows changes of the account and formats each phone number once`() =
+        runTest {
+            answerPhoneNumberInfo(callingCode = "44", formattedNumber = "7911 123456")
+            val viewModel = viewModel()
+            announceMe(TdApiFixtures.user(id = 7, firstName = "Ada", phoneNumber = "447911123456"))
+
+            client.emit(TdApiFixtures.updateUserStatus(userId = 7, status = TdApiFixtures.onlineStatus(expires = 99)))
+            client.emit(
+                TdApiFixtures.updateUser(TdApiFixtures.user(id = 7, firstName = "Grace", phoneNumber = "447911123456")),
+            )
+            runCurrent()
+
+            val account = viewModel.state.account
+            assertEquals("Grace" to "+44 7911 123456", account?.name to account?.phoneNumber)
+            assertEquals(1, client.sentOf<TdApi.GetPhoneNumberInfo>().size)
+        }
+
+    @Test
+    fun `the account goes when TDLib forgets the logged-in user`() =
+        runTest {
+            val viewModel = viewModel()
+            announceMe(TdApiFixtures.user(id = 7))
+
+            client.emit(TdApiFixtures.myIdOption(null))
+            runCurrent()
+
+            assertNull(viewModel.state.account)
+        }
+
+    @Test
+    fun `the open confirmation survives process death`() =
+        runTest {
+            send(viewModel(), SettingsEvent.LogOut)
+
+            val restored = viewModel(SavedStateHandle(savedState.keys().associateWith { savedState.get<Any>(it) }))
+
+            assertEquals(SettingsUiState(isLogOutDialogOpen = true), restored.state)
+        }
+
+    @Test
+    fun `a confirmed logout is not restored after process death`() =
+        runTest {
+            client.on(TdApi.LogOut::class) { CompletableDeferred<TdResult<TdApi.Ok>>().await() }
+            send(viewModel(), SettingsEvent.LogOut, SettingsEvent.ConfirmLogOut)
+
+            val restored = viewModel(SavedStateHandle(savedState.keys().associateWith { savedState.get<Any>(it) }))
+
+            assertEquals(SettingsUiState(), restored.state)
+        }
+
+    @Test
+    fun `shows no other accounts or Add account while the app offers one account`() =
+        runTest {
+            val accounts = FakeDeviceAccountsRepository(isAvailable = false, accounts = persistentListOf(ada, grace))
+
+            val viewModel = viewModel(deviceAccounts = accounts)
+
+            assertTrue(viewModel.state.otherAccounts.isEmpty())
+            assertFalse(viewModel.state.canAddAccount)
+        }
+
+    @Test
+    fun `lists the other signed-in accounts, not the one shown, with Add account`() =
+        runTest {
+            val accounts = FakeDeviceAccountsRepository(accounts = persistentListOf(ada, grace))
+
+            val viewModel = viewModel(deviceAccounts = accounts)
+
+            assertEquals(
+                listOf(
+                    OtherAccountUiModel(
+                        slot = 1,
+                        userId = 2,
+                        name = "Grace Hopper",
+                        photo = null,
+                        phoneNumber = "+12025550143",
+                        unreadChats = 3,
+                    ),
+                ),
+                viewModel.state.otherAccounts,
+            )
+            assertTrue(viewModel.state.canAddAccount)
+        }
+
+    @Test
+    fun `formats the other accounts' numbers through TDLib once each`() =
+        runTest {
+            var requests = 0
+            client.on(TdApi.GetPhoneNumberInfo::class) {
+                requests++
+                TdResult.Success(TdApi.PhoneNumberInfo(null, "1", "202 555 0143", false))
+            }
+            val accounts = FakeDeviceAccountsRepository(accounts = persistentListOf(ada, grace))
+            val viewModel = viewModel(deviceAccounts = accounts)
+
+            accounts.accountList.value = persistentListOf(ada, grace.copy(unreadChats = 4))
+            runCurrent()
+
+            assertEquals(
+                "+1 202 555 0143",
+                viewModel.state.otherAccounts
+                    .single()
+                    .phoneNumber,
+            )
+            assertEquals(
+                4,
+                viewModel.state.otherAccounts
+                    .single()
+                    .unreadChats,
+            )
+            assertEquals(1, requests)
+        }
+
+    @Test
+    fun `leaves out an account whose user TDLib has not announced, and Add account at the limit`() =
+        runTest {
+            val accounts = FakeDeviceAccountsRepository(accounts = persistentListOf(ada, grace.copy(user = null)))
+            accounts.canAdd.value = false
+
+            val viewModel = viewModel(deviceAccounts = accounts)
+
+            assertTrue(viewModel.state.otherAccounts.isEmpty())
+            assertFalse(viewModel.state.canAddAccount)
+        }
+
+    @Test
+    fun `switching and adding go to the device's accounts`() =
+        runTest {
+            val accounts = FakeDeviceAccountsRepository(accounts = persistentListOf(ada, grace))
+            val viewModel = viewModel(deviceAccounts = accounts)
+
+            send(viewModel, SettingsEvent.SwitchAccount(1), SettingsEvent.AddAccount)
+
+            assertEquals(listOf(1), accounts.switchedTo)
+            assertEquals(1, accounts.adds)
+        }
+
+    private val ada =
+        DeviceAccount(slot = 0, user = domainUser(1, "Ada", "447911123456"), unreadChats = 0, isActive = true)
+    private val grace =
+        DeviceAccount(slot = 1, user = domainUser(2, "Grace Hopper", "12025550143"), unreadChats = 3, isActive = false)
+
+    private fun domainUser(
+        id: Long,
+        name: String,
+        phoneNumber: String,
+    ) = User(
+        id = id,
+        firstName = name,
+        lastName = "",
+        usernames = persistentListOf(),
+        phoneNumber = phoneNumber,
+        status = UserStatus.Empty,
+        profilePhoto = null,
+        isVerified = false,
+        isScam = false,
+        isFake = false,
+        isPremium = false,
+        isContact = false,
+        isMutualContact = false,
+        isSupport = false,
+        type = UserType.Regular,
+        haveAccess = true,
+    )
+
+    private companion object {
+        /** `AUTH_REQUEST_TIMEOUT` of `core:data`: logging out is an authentication request. */
+        val REQUEST_TIMEOUT = 90.seconds
+    }
+}

@@ -1,0 +1,197 @@
+package dev.kyralabs.pingogram.feature.auth.ui.components
+
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import dev.kyralabs.pingogram.core.domain.model.ConnectionStatus
+import dev.kyralabs.pingogram.core.ui.component.CountdownIndicator
+import dev.kyralabs.pingogram.core.ui.text.durationText
+import dev.kyralabs.pingogram.core.ui.theme.sizes
+import dev.kyralabs.pingogram.core.ui.theme.spacing
+import dev.kyralabs.pingogram.core.ui.time.announcedCountdownSeconds
+import dev.kyralabs.pingogram.core.ui.time.secondsLeft
+import dev.kyralabs.pingogram.feature.auth.R
+import dev.kyralabs.pingogram.core.ui.R as UiR
+
+/**
+ * Back navigation ([onBack], null when back leaves the flow) and, while not connected, the connection status as the
+ * title, announced to screen readers (`docs/DESIGN_SYSTEM.md` §9).
+ */
+@Composable
+internal fun AuthTopBar(
+    connection: ConnectionStatus,
+    onBack: (() -> Unit)?,
+    modifier: Modifier = Modifier,
+) {
+    TopAppBar(
+        modifier = modifier,
+        title = {
+            val status = connection.statusText()
+            if (status != null) {
+                Text(
+                    text = status,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    // Offline, the ConnectionBanner announces it instead.
+                    modifier =
+                        Modifier.semantics {
+                            if (connection != ConnectionStatus.WaitingForNetwork) liveRegion = LiveRegionMode.Polite
+                        },
+                )
+            }
+        },
+        navigationIcon = {
+            if (onBack != null) {
+                IconButton(onClick = onBack, shapes = IconButtonDefaults.shapes()) {
+                    Icon(
+                        painter = painterResource(UiR.drawable.ic_arrow_back),
+                        contentDescription = stringResource(R.string.auth_back),
+                    )
+                }
+            }
+        },
+        colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
+    )
+}
+
+@Composable
+private fun ConnectionStatus.statusText(): String? =
+    when (this) {
+        ConnectionStatus.WaitingForNetwork -> stringResource(R.string.auth_connection_waiting_for_network)
+        ConnectionStatus.ConnectingToProxy -> stringResource(R.string.auth_connection_connecting_to_proxy)
+        ConnectionStatus.Connecting -> stringResource(R.string.auth_connection_connecting)
+        ConnectionStatus.Updating -> stringResource(R.string.auth_connection_updating)
+        ConnectionStatus.Ready -> null
+    }
+
+/**
+ * While offline: requests wait for the connection, so say so (`REQUIREMENTS.md` §6.5), with an info icon; announced
+ * when it appears.
+ */
+@Composable
+internal fun ConnectionBanner(
+    isOffline: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    AuthBanner(
+        visible = isOffline,
+        modifier = modifier,
+        icon = { Icon(painterResource(UiR.drawable.ic_info), contentDescription = null) },
+    ) {
+        Text(
+            text = stringResource(R.string.auth_offline_banner),
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+        )
+    }
+}
+
+/**
+ * While Telegram asks to wait (`FLOOD_WAIT`): the time left, which the ViewModel counts down, and beside it a clock in
+ * a [CountdownIndicator] that runs down from [totalSeconds]. Screen readers hear the time as a live region, at most
+ * every 15 seconds ([announcedCountdownSeconds]) rather than every second.
+ */
+@Composable
+internal fun FloodWaitBanner(
+    seconds: Long?,
+    totalSeconds: Long,
+    modifier: Modifier = Modifier,
+) {
+    val left = seconds ?: 0
+    AuthBanner(
+        visible = seconds != null,
+        modifier = modifier,
+        isError = true,
+        icon = {
+            CountdownIndicator(
+                secondsLeft = left,
+                totalSeconds = totalSeconds,
+                color = LocalContentColor.current,
+                trackColor = MaterialTheme.colorScheme.outlineVariant,
+            ) {
+                Icon(painterResource(UiR.drawable.ic_schedule), contentDescription = null)
+            }
+        },
+    ) {
+        val announcement = stringResource(R.string.auth_flood_wait, durationText(announcedCountdownSeconds(left)))
+        Text(
+            text = stringResource(R.string.auth_flood_wait, durationText(left)),
+            style = MaterialTheme.typography.bodyMedium,
+            modifier =
+                Modifier.clearAndSetSemantics {
+                    contentDescription = announcement
+                    liveRegion = LiveRegionMode.Polite
+                },
+        )
+    }
+}
+
+/** A banner below the top bar, as wide as the step's content on wide windows: a leading [icon], then [content]. */
+@Composable
+private fun AuthBanner(
+    visible: Boolean,
+    icon: @Composable () -> Unit,
+    modifier: Modifier = Modifier,
+    isError: Boolean = false,
+    content: @Composable () -> Unit,
+) {
+    val motion = MaterialTheme.motionScheme
+    AnimatedVisibility(
+        visible = visible,
+        modifier = modifier.fillMaxWidth(),
+        enter = expandVertically(motion.defaultSpatialSpec()) + fadeIn(motion.defaultEffectsSpec()),
+        exit = shrinkVertically(motion.defaultSpatialSpec()) + fadeOut(motion.defaultEffectsSpec()),
+    ) {
+        val colors = MaterialTheme.colorScheme
+        Box(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = authHorizontalMargin(), vertical = MaterialTheme.spacing.extraSmall),
+            contentAlignment = Alignment.TopCenter,
+        ) {
+            Surface(
+                modifier = Modifier.widthIn(max = MaterialTheme.sizes.contentMaxWidth).fillMaxWidth(),
+                shape = MaterialTheme.shapes.large,
+                color = if (isError) colors.errorContainer else colors.surfaceContainerHighest,
+                contentColor = if (isError) colors.onErrorContainer else colors.onSurfaceVariant,
+            ) {
+                Row(
+                    modifier = Modifier.padding(MaterialTheme.spacing.medium),
+                    horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.medium),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    icon()
+                    Box(modifier = Modifier.weight(1f)) { content() }
+                }
+            }
+        }
+    }
+}

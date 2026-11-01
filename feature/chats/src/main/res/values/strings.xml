@@ -1,0 +1,320 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Chat list (ChatListScreen) -->
+    <string name="chat_list_title" translatable="false">Pingogram</string>
+    <!-- The connection pill under the title while not connected. -->
+    <string name="chat_list_waiting_for_network">Waiting for network…</string>
+    <string name="chat_list_connecting_to_proxy">Connecting to proxy…</string>
+    <string name="chat_list_connecting">Connecting…</string>
+    <string name="chat_list_updating">Updating…</string>
+    <!-- For screen readers, announced once when the connection is back after one of the states above showed. -->
+    <string name="chat_list_connected">Connected</string>
+    <string name="chat_list_loading">Loading chats</string>
+    <!-- The folder tab of the main chat list. -->
+    <string name="chat_list_all_chats">All chats</string>
+    <string name="chat_list_empty_title">No chats yet</string>
+    <string name="chat_list_empty_body">When you start a conversation or join a group, it shows up here.</string>
+    <string name="chat_list_folder_empty_title">No chats in this folder</string>
+    <string name="chat_list_folder_empty_body">Chats that belong to this folder show up here.</string>
+    <string name="chat_list_error_title">Your chats couldn\'t be loaded</string>
+    <string name="chat_list_retry">Try again</string>
+
+    <!-- Rows of the chat list (ChatListItem) -->
+    <!-- Before the preview of a message in a group: %1$s is "You" or the sender's first name. -->
+    <string name="chat_list_sender">%1$s:</string>
+    <!-- For screen readers: a message's sender ("Alice:", chat_list_sender) before its text, as a search result shows them. -->
+    <string name="chat_list_a11y_sender_text">%1$s %2$s</string>
+    <!-- Before the preview of a message the user started and did not send. -->
+    <string name="chat_list_draft">Draft:</string>
+    <!-- Warning badges after the name of a chat that many users reported. -->
+    <string name="chat_list_badge_scam">Scam</string>
+    <string name="chat_list_badge_fake">Fake</string>
+    <!-- An unread count in a badge. -->
+    <string name="chat_list_unread_count">%1$d</string>
+    <!-- An unread count above the badge's limit: %1$d is the limit, 999. -->
+    <string name="chat_list_unread_overflow">%1$d+</string>
+
+    <!-- What screen readers say for a row, after the chat's name. -->
+    <string name="chat_list_a11y_verified">Verified</string>
+    <string name="chat_list_a11y_secret">Secret chat</string>
+    <string name="chat_list_a11y_online">Online</string>
+    <string name="chat_list_a11y_muted">Muted</string>
+    <string name="chat_list_a11y_pinned">Pinned</string>
+    <string name="chat_list_a11y_pending">Sending</string>
+    <string name="chat_list_a11y_failed">Not sent</string>
+    <string name="chat_list_a11y_sent">Sent</string>
+    <string name="chat_list_a11y_read">Read</string>
+    <string name="chat_list_a11y_marked_unread">Marked as unread</string>
+    <string name="chat_list_a11y_mention">Unread mention</string>
+    <string name="chat_list_a11y_reaction">Unread reaction</string>
+    <plurals name="chat_list_a11y_unread">
+        <item quantity="one">%d unread message</item>
+        <item quantity="other">%d unread messages</item>
+    </plurals>
+    <!-- A folder tab for screen readers: %1$s is its name, %2$s its unread chats ("2 unread chats"). -->
+    <string name="chat_list_a11y_tab">%1$s, %2$s</string>
+    <plurals name="chat_list_a11y_unread_chats">
+        <item quantity="one">%d unread chat</item>
+        <item quantity="other">%d unread chats</item>
+    </plurals>
+
+    <!-- Actions on a chat (ChatRowAction): screen reader actions on a row, the selection toolbar's buttons. -->
+    <string name="chat_list_action_mark_read">Mark as read</string>
+    <string name="chat_list_action_mark_unread">Mark as unread</string>
+    <string name="chat_list_action_archive">Archive</string>
+    <string name="chat_list_action_unarchive">Unarchive</string>
+    <string name="chat_list_action_pin">Pin</string>
+    <string name="chat_list_action_unpin">Unpin</string>
+    <string name="chat_list_action_mute">Mute</string>
+    <string name="chat_list_action_unmute">Unmute</string>
+    <string name="chat_list_action_delete">Delete</string>
+    <!-- Revealed behind a row while it is swiped to mark it as read or unread. -->
+    <string name="chat_list_swipe_read">Read</string>
+    <string name="chat_list_swipe_unread">Unread</string>
+    <!-- Snackbars after archiving: one chat, or %d chats. -->
+    <string name="chat_list_archived_one">Chat archived</string>
+    <plurals name="chat_list_archived_many">
+        <item quantity="one">%d chat archived</item>
+        <item quantity="other">%d chats archived</item>
+    </plurals>
+    <string name="chat_list_undo">Undo</string>
+
+    <!-- Selection mode: the title with the number of selected chats, and the button that leaves it. -->
+    <plurals name="chat_list_selected">
+        <item quantity="one">%d selected</item>
+        <item quantity="other">%d selected</item>
+    </plurals>
+    <string name="chat_list_clear_selection">Clear selection</string>
+    <!-- What long-pressing a row does, for screen readers ("Double-tap and hold to select"). -->
+    <string name="chat_list_select">Select</string>
+
+    <!-- Deleting chats (DeleteChatDialog). %1$s is the chat's name. -->
+    <string name="chat_list_delete_title">Delete chat?</string>
+    <string name="chat_list_leave_group_title">Leave group?</string>
+    <string name="chat_list_leave_channel_title">Leave channel?</string>
+    <plurals name="chat_list_delete_chats_title">
+        <item quantity="one">Delete %d chat?</item>
+        <item quantity="other">Delete %d chats?</item>
+    </plurals>
+    <string name="chat_list_delete_body">%1$s will be removed from your chat list.</string>
+    <string name="chat_list_leave_body">You\'ll leave %1$s, and it will be removed from your chat list.</string>
+    <string name="chat_list_delete_chats_body">They will be removed from your chat list, and you\'ll leave the groups and channels among them.</string>
+    <string name="chat_list_delete_for_user">Also delete for %1$s</string>
+    <string name="chat_list_delete_for_members">Delete for all members</string>
+    <string name="chat_list_delete_for_subscribers">Delete for all subscribers</string>
+    <string name="chat_list_delete_confirm">Delete</string>
+    <string name="chat_list_leave_confirm">Leave</string>
+    <string name="chat_list_cancel">Cancel</string>
+
+    <!-- The archive (FR-L3, FR-L9): its row at the top of the chat list, and its screen. -->
+    <string name="chat_list_archived_chats">Archived chats</string>
+    <!-- The row at the end of the chat list that opens the chats kept behind the passcode (docs/adr/0029-locked-chats.md). -->
+    <string name="chat_list_locked_chats">Locked chats</string>
+    <string name="chat_list_locked_chats_summary">Open with your passcode</string>
+    <!-- The archive row's second line before its chats are loaded: how many chats it has. -->
+    <plurals name="chat_list_archive_chat_count">
+        <item quantity="one">%d chat</item>
+        <item quantity="other">%d chats</item>
+    </plurals>
+    <string name="chat_list_archive_back">Back</string>
+    <string name="chat_list_archive_empty_title">No archived chats</string>
+    <string name="chat_list_archive_empty_body">Chats you archive show up here, out of your way.</string>
+    <!-- The archive row's menu (a long press) and its swipe, and the snackbar after it was hidden. -->
+    <string name="chat_list_archive_row_menu">Show options</string>
+    <string name="chat_list_archive_row_collapse">Make compact</string>
+    <string name="chat_list_archive_row_expand">Show chat names</string>
+    <string name="chat_list_archive_row_hide">Hide from chat list</string>
+    <string name="chat_list_archive_row_swipe_hide">Hide</string>
+    <string name="chat_list_archive_row_hidden">Archived chats hidden. Open them from the top bar.</string>
+    <!-- A folder tab's menu (a long press): edit the folder ("All chats": the folders), and mark its chats as read. -->
+    <string name="chat_list_edit_folder">Edit folder</string>
+    <string name="chat_list_edit_folders">Edit folders</string>
+    <string name="chat_list_mark_all_as_read">Mark all as read</string>
+
+    <!-- The archive's settings (FR-L9): what Telegram archives and keeps archived, and the archive row. -->
+    <string name="archive_settings_title">Archive settings</string>
+    <string name="archive_settings_loading">Loading archive settings</string>
+    <string name="archive_settings_error">Couldn\'t load the archive settings</string>
+    <string name="archive_settings_new_chats_header">New chats</string>
+    <string name="archive_settings_new_chats">Archive and mute new chats</string>
+    <string name="archive_settings_new_chats_summary">From people who aren\'t in your contacts</string>
+    <string name="archive_settings_new_chats_footer">They go straight to the archive, without notifications. Chats with your contacts stay where they are.</string>
+    <!-- Telegram's option can_archive_and_mute_new_chats_from_unknown_users is off for the account. -->
+    <string name="archive_settings_new_chats_unavailable">Telegram doesn\'t offer this for your account right now.</string>
+    <string name="archive_settings_kept_header">When a new message arrives</string>
+    <string name="archive_settings_keep_unmuted">Keep unmuted chats archived</string>
+    <string name="archive_settings_keep_unmuted_summary">They stay in the archive</string>
+    <string name="archive_settings_keep_folders">Keep chats from folders archived</string>
+    <string name="archive_settings_keep_folders_summary">Unmuted chats a folder includes or pins stay in the archive</string>
+    <string name="archive_settings_keep_folders_implied">Kept, as all unmuted chats are</string>
+    <string name="archive_settings_kept_footer">Otherwise a new message moves an archived chat back to your chats, unless it\'s muted. These settings belong to your Telegram account.</string>
+    <string name="archive_settings_row_header">In the chat list</string>
+    <string name="archive_settings_row_full">Full</string>
+    <string name="archive_settings_row_full_summary">With the names of archived chats</string>
+    <string name="archive_settings_row_compact">Compact</string>
+    <string name="archive_settings_row_compact_summary">One line, with the unread count</string>
+    <string name="archive_settings_row_hidden">Hidden</string>
+    <string name="archive_settings_row_hidden_summary">Open the archive with the button in the top bar</string>
+    <string name="archive_settings_row_footer">Kept on this device. A long press on the row changes it too, and a swipe hides it.</string>
+
+    <!-- Global search (SearchScreen, FR-L6): the search field. -->
+    <string name="search_placeholder">Search chats, people and messages</string>
+    <string name="search_back">Back</string>
+    <string name="search_clear">Clear search</string>
+    <!-- The filter chips under the search field: everything, or one kind of result. -->
+    <string name="search_filter_all">All</string>
+    <string name="search_filter_chats">Chats</string>
+    <string name="search_filter_contacts">Contacts</string>
+    <string name="search_filter_messages">Messages</string>
+    <string name="search_filter_media">Media</string>
+    <string name="search_filter_links">Links</string>
+    <!-- Section headers. -->
+    <string name="search_section_people">People</string>
+    <string name="search_section_recent">Recent</string>
+    <string name="search_section_chats">Chats</string>
+    <string name="search_section_contacts">Contacts</string>
+    <!-- Public chats, channels and users found by username, outside the user's chats and contacts. -->
+    <string name="search_section_global">Global search</string>
+    <string name="search_section_messages">Messages</string>
+    <!-- The messages section under the Media and Links filters. -->
+    <string name="search_section_media">Photos and videos</string>
+    <string name="search_section_links">Links</string>
+    <!-- Recent searches: the button that empties them, and the button that removes one (%1$s is its name). -->
+    <string name="search_clear_recents">Clear all</string>
+    <string name="search_remove_recent">Remove %1$s from recent searches</string>
+    <!-- The second line of a result: a username, or how many members or subscribers ("1,204"). -->
+    <string name="search_username" translatable="false">\@%1$s</string>
+    <plurals name="search_members">
+        <item quantity="one">%1$s member</item>
+        <item quantity="other">%1$s members</item>
+    </plurals>
+    <plurals name="search_subscribers">
+        <item quantity="one">%1$s subscriber</item>
+        <item quantity="other">%1$s subscribers</item>
+    </plurals>
+    <!-- Before anything is typed, without recent searches. -->
+    <string name="search_hint_title">Find anything</string>
+    <string name="search_hint_body">Search your chats and contacts, public channels and groups by their username, and the messages in all your chats.</string>
+    <!-- A query that found nothing: %1$s is the query. -->
+    <string name="search_no_results_title">No results for “%1$s”</string>
+    <string name="search_no_results_body">Check the spelling, or try other words.</string>
+    <!-- The Media or Links filter without a query, when the chats have none. -->
+    <string name="search_no_media_title">No photos or videos</string>
+    <string name="search_no_media_body">Photos and videos sent in your chats show up here.</string>
+    <string name="search_no_links_title">No links</string>
+    <string name="search_no_links_body">Messages with links in your chats show up here.</string>
+    <string name="search_retry">Try again</string>
+    <!-- A section that is still searching, for screen readers. -->
+    <string name="search_searching">Searching…</string>
+    <!-- How many results a query found, announced to screen readers once every section has searched. -->
+    <plurals name="search_a11y_results">
+        <item quantity="one">%d result</item>
+        <item quantity="other">%d results</item>
+    </plurals>
+    <string name="search_a11y_no_results">No results</string>
+
+    <!-- The request to allow notifications above the chat list (Android 13+). -->
+    <string name="notification_prompt_title">Turn on notifications</string>
+    <string name="notification_prompt_body">Get notified about new messages and calls. You can mute chats any time.</string>
+    <string name="notification_prompt_blocked_title">Notifications are off</string>
+    <string name="notification_prompt_blocked_body">To get notified about new messages and calls, allow notifications for Pingogram in your device settings.</string>
+    <string name="notification_prompt_not_now">Not now</string>
+    <string name="notification_prompt_allow">Allow</string>
+    <string name="notification_prompt_open_settings">Open settings</string>
+    <!-- Starting a chat (FR-L7): the Chats tab's button and its empty state's, and the New chat screen. -->
+    <string name="new_chat">New chat</string>
+    <string name="new_chat_back">Back</string>
+    <string name="new_chat_group">New group</string>
+    <string name="new_chat_channel">New channel</string>
+    <string name="new_chat_contact">New contact</string>
+    <string name="new_chat_contacts">Contacts</string>
+    <string name="new_chat_loading">Loading contacts</string>
+    <string name="new_chat_no_contacts">No contacts yet. People you add to your contacts show up here.</string>
+
+    <!-- Creating a group or a channel (FR-P4). -->
+    <string name="create_next">Next</string>
+    <string name="create_skip">Skip</string>
+    <string name="create_add">Add</string>
+    <string name="create_search">Search contacts</string>
+    <string name="create_search_clear">Clear search</string>
+    <!-- Screen readers: tapping a picked person's chip. %1$s is their name. -->
+    <string name="create_member_remove">Remove %1$s</string>
+    <string name="create_no_contacts">No contacts yet. You can add people later with an invite link.</string>
+    <string name="create_no_results">No contacts match your search.</string>
+    <plurals name="create_too_many_members">
+        <item quantity="one">You can add up to %d person now. Invite more people with a link later.</item>
+        <item quantity="other">You can add up to %d people now. Invite more people with a link later.</item>
+    </plurals>
+    <string name="create_photo_remove">Remove photo</string>
+    <string name="create_flood_wait">Too many attempts. Try again in %1$s.</string>
+    <string name="create_group_photo">Set group photo</string>
+    <string name="create_group_name">Group name</string>
+    <string name="create_group_name_error">Enter a name for the group.</string>
+    <string name="create_group_no_members">Only you for now. You can add people later.</string>
+    <plurals name="create_group_members">
+        <item quantity="one">%d person will be added.</item>
+        <item quantity="other">%d people will be added.</item>
+    </plurals>
+    <string name="create_auto_delete">Auto-delete messages</string>
+    <string name="create_auto_delete_off">Off</string>
+    <string name="create_auto_delete_day">1 day</string>
+    <string name="create_auto_delete_week">1 week</string>
+    <string name="create_auto_delete_month">1 month</string>
+    <string name="create_auto_delete_off_note">Messages stay until someone deletes them.</string>
+    <string name="create_auto_delete_note">New messages are deleted for everyone after this time.</string>
+    <string name="create_group">Create</string>
+    <string name="create_channel_photo">Set channel photo</string>
+    <string name="create_channel_name">Channel name</string>
+    <string name="create_channel_name_error">Enter a name for the channel.</string>
+    <string name="create_channel_description">Description (optional)</string>
+    <string name="create_channel_description_note">Tell people what your channel is about.</string>
+    <string name="create_channel_type">Channel type</string>
+    <string name="create_private">Private</string>
+    <string name="create_public">Public</string>
+    <string name="create_private_note">Only people with the invite link can join.</string>
+    <string name="create_public_note">Anyone can find the channel in search and join it.</string>
+    <string name="create_link">Link</string>
+    <string name="create_link_prefix" translatable="false">t.me/</string>
+    <string name="create_link_note">People can share this link and find your channel by it.</string>
+    <string name="create_link_checking">Checking…</string>
+    <string name="create_link_check_failed">Couldn\'t check this link. You can still try it.</string>
+    <plurals name="create_link_too_short">
+        <item quantity="one">A link needs at least %d character.</item>
+        <item quantity="other">A link needs at least %d characters.</item>
+    </plurals>
+    <plurals name="create_link_too_long">
+        <item quantity="one">A link can have at most %d character.</item>
+        <item quantity="other">A link can have at most %d characters.</item>
+    </plurals>
+    <string name="create_link_characters">Use only a–z, 0–9 and underscores.</string>
+    <string name="create_link_first_letter">A link must start with a letter.</string>
+    <string name="create_link_ends_with_underscore">A link can\'t end with an underscore.</string>
+    <string name="create_link_consecutive_underscores">A link can\'t have two underscores in a row.</string>
+    <!-- %1$s is the username, without @. -->
+    <string name="create_link_available">t.me/%1$s is available.</string>
+    <string name="create_link_invalid">Telegram doesn\'t accept this link.</string>
+    <string name="create_link_taken">This link is already taken.</string>
+    <string name="create_link_for_sale">This link is for sale on Fragment.</string>
+    <string name="create_link_unavailable">This link can\'t be used. You may have too many public links.</string>
+    <string name="create_link_loading">Loading the invite link</string>
+    <string name="create_link_copy">Copy</string>
+    <string name="create_link_share">Share</string>
+    <string name="create_link_copied">Link copied</string>
+    <string name="create_channel_members">Add subscribers</string>
+    <plurals name="create_not_added_title">
+        <item quantity="one">%d person wasn\'t added</item>
+        <item quantity="other">%d people weren\'t added</item>
+    </plurals>
+    <string name="create_not_added_text">Their privacy settings don\'t let you add them to groups. You can send them an invite link instead.</string>
+    <string name="create_not_added_text_channel">Their privacy settings don\'t let you add them to channels. You can send them an invite link instead.</string>
+    <string name="create_not_added_share">Share invite link</string>
+    <string name="create_not_added_ok">OK</string>
+    <!-- Story rings above the chat list. -->
+    <string name="stories_your_story">Your story</string>
+    <plurals name="stories_count">
+        <item quantity="one">%d story</item>
+        <item quantity="other">%d stories</item>
+    </plurals>
+    <string name="stories_a11y_unseen">not seen</string>
+    <string name="stories_a11y_seen">seen</string>
+</resources>
