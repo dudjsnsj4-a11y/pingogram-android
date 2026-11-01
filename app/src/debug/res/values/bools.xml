@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- LeakCanary's "Leaks" launcher icon is a developer tool: keep it out of the app drawer. It stays available
+         through its notification and the debug build's own entry points. -->
+    <bool name="leak_canary_add_launcher_icon">false</bool>
+</resources>
