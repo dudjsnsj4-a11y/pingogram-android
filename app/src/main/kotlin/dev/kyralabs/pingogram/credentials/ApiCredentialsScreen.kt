@@ -21,6 +21,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -50,110 +51,179 @@ fun ApiCredentialsScreen(
     modifier: Modifier = Modifier,
 ) {
     val uriHandler = LocalUriHandler.current
-    var apiIdText by rememberSaveable { mutableStateOf(initialApiId?.takeIf { it > 0 }?.toString().orEmpty()) }
-    var apiHashText by rememberSaveable { mutableStateOf(initialApiHash) }
-    var error by rememberSaveable { mutableStateOf<Error?>(null) }
-
+    val state = rememberSaveable(saver = CredentialsStateSaver) {
+        CredentialsState(
+            initialApiIdText = initialApiId?.takeIf { it > 0 }?.toString().orEmpty(),
+            initialApiHashText = initialApiHash,
+        )
+    }
     Scaffold(modifier = modifier) { padding ->
-        Column(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .verticalScroll(rememberScrollState())
-                    .imePadding()
-                    .padding(horizontal = 24.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            Spacer(Modifier.height(24.dp))
-            Text(
-                text = stringResource(R.string.api_credentials_title),
-                style = MaterialTheme.typography.headlineMedium,
-            )
-            Text(
-                text = stringResource(R.string.api_credentials_intro),
-                style = MaterialTheme.typography.bodyLarge,
-            )
-            TextButton(onClick = { uriHandler.openUri("https://my.telegram.org/apps") }) {
-                Text(stringResource(R.string.api_credentials_open_site))
-            }
-            if (showTimeoutMessage) {
-                Surface(
-                    color = MaterialTheme.colorScheme.errorContainer,
-                    shape = MaterialTheme.shapes.large,
-                ) {
-                    Text(
-                        text = stringResource(R.string.api_credentials_timeout),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onErrorContainer,
-                        modifier = Modifier.padding(16.dp),
-                    )
-                }
-            }
-            OutlinedTextField(
-                value = apiIdText,
-                onValueChange = {
-                    apiIdText = it.filter(Char::isDigit)
-                    error = null
-                },
-                label = { Text(stringResource(R.string.api_credentials_id_label)) },
-                singleLine = true,
-                isError = error == Error.InvalidId,
-                supportingText = {
-                    if (error == Error.InvalidId) Text(stringResource(R.string.api_credentials_error_id))
-                },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth(),
-            )
-            OutlinedTextField(
-                value = apiHashText,
-                onValueChange = {
-                    apiHashText = it.trim().take(API_HASH_LENGTH)
-                    error = null
-                },
-                label = { Text(stringResource(R.string.api_credentials_hash_label)) },
-                singleLine = true,
-                isError = error == Error.InvalidHash,
-                supportingText = {
-                    if (error == Error.InvalidHash) Text(stringResource(R.string.api_credentials_error_hash))
-                },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Button(
-                onClick = {
-                    val apiId = apiIdText.toIntOrNull()
-                    val apiHash = apiHashText.trim().lowercase()
-                    error =
-                        when {
-                            apiId == null || apiId <= 0 -> Error.InvalidId
-                            !ApiCredentialsStore.isValid(apiId, apiHash) -> Error.InvalidHash
-                            else -> null
-                        }
-                    if (error == null && apiId != null && !onSave(apiId, apiHash)) {
-                        error = Error.Storage
-                    }
-                },
-                enabled = apiIdText.isNotBlank() && apiHashText.isNotBlank(),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(stringResource(R.string.api_credentials_save))
-            }
-            if (error == Error.Storage) {
-                Text(
-                    text = stringResource(R.string.api_credentials_error_storage),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.error,
-                )
-            }
-            if (showTimeoutMessage) {
-                TextButton(onClick = onContinue, modifier = Modifier.fillMaxWidth()) {
-                    Text(stringResource(R.string.api_credentials_continue))
-                }
+        CredentialsForm(
+            state = state,
+            showTimeoutMessage = showTimeoutMessage,
+            onOpenSite = { uriHandler.openUri("https://my.telegram.org/apps") },
+            onSave = onSave,
+            onContinue = onContinue,
+            modifier = Modifier.padding(padding),
+        )
+    }
+}
+
+@Composable
+private fun CredentialsForm(
+    state: CredentialsState,
+    showTimeoutMessage: Boolean,
+    onOpenSite: () -> Unit,
+    onSave: (apiId: Int, apiHash: String) -> Boolean,
+    onContinue: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier =
+            modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .imePadding()
+                .padding(horizontal = 24.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Spacer(Modifier.height(24.dp))
+        CredentialsHeader(onOpenSite)
+        if (showTimeoutMessage) TimeoutNotice()
+        CredentialsFields(state)
+        SaveButton(
+            enabled = state.apiIdText.isNotBlank() && state.apiHashText.isNotBlank(),
+            storageError = state.error == Error.Storage,
+            onClick = { save(state, onSave) },
+        )
+        if (showTimeoutMessage) {
+            TextButton(onClick = onContinue, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.api_credentials_continue))
             }
         }
     }
 }
+
+private fun save(
+    state: CredentialsState,
+    onSave: (apiId: Int, apiHash: String) -> Boolean,
+) {
+    val apiId = state.apiIdText.toIntOrNull()
+    val apiHash = state.apiHashText.trim().lowercase()
+    state.error =
+        when {
+            apiId == null || apiId <= 0 -> Error.InvalidId
+            !ApiCredentialsStore.isValid(apiId, apiHash) -> Error.InvalidHash
+            else -> null
+        }
+    if (state.error == null && apiId != null && !onSave(apiId, apiHash)) {
+        state.error = Error.Storage
+    }
+}
+
+@Composable
+private fun CredentialsHeader(onOpenSite: () -> Unit) {
+    Text(
+        text = stringResource(R.string.api_credentials_title),
+        style = MaterialTheme.typography.headlineMedium,
+    )
+    Text(
+        text = stringResource(R.string.api_credentials_intro),
+        style = MaterialTheme.typography.bodyLarge,
+    )
+    TextButton(onClick = onOpenSite) {
+        Text(stringResource(R.string.api_credentials_open_site))
+    }
+}
+
+@Composable
+private fun TimeoutNotice() {
+    Surface(
+        color = MaterialTheme.colorScheme.errorContainer,
+        shape = MaterialTheme.shapes.large,
+    ) {
+        Text(
+            text = stringResource(R.string.api_credentials_timeout),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onErrorContainer,
+            modifier = Modifier.padding(16.dp),
+        )
+    }
+}
+
+@Composable
+private fun CredentialsFields(state: CredentialsState) {
+    OutlinedTextField(
+        value = state.apiIdText,
+        onValueChange = {
+            state.apiIdText = it.filter(Char::isDigit)
+            state.error = null
+        },
+        label = { Text(stringResource(R.string.api_credentials_id_label)) },
+        singleLine = true,
+        isError = state.error == Error.InvalidId,
+        supportingText = {
+            if (state.error == Error.InvalidId) Text(stringResource(R.string.api_credentials_error_id))
+        },
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        modifier = Modifier.fillMaxWidth(),
+    )
+    OutlinedTextField(
+        value = state.apiHashText,
+        onValueChange = {
+            state.apiHashText = it.trim().take(API_HASH_LENGTH)
+            state.error = null
+        },
+        label = { Text(stringResource(R.string.api_credentials_hash_label)) },
+        singleLine = true,
+        isError = state.error == Error.InvalidHash,
+        supportingText = {
+            if (state.error == Error.InvalidHash) Text(stringResource(R.string.api_credentials_error_hash))
+        },
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
+        modifier = Modifier.fillMaxWidth(),
+    )
+}
+
+@Composable
+private fun SaveButton(
+    enabled: Boolean,
+    storageError: Boolean,
+    onClick: () -> Unit,
+) {
+    Button(onClick = onClick, enabled = enabled, modifier = Modifier.fillMaxWidth()) {
+        Text(stringResource(R.string.api_credentials_save))
+    }
+    if (storageError) {
+        Text(
+            text = stringResource(R.string.api_credentials_error_storage),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.error,
+        )
+    }
+}
+
+private class CredentialsState(
+    initialApiIdText: String,
+    initialApiHashText: String,
+    initialError: Error? = null,
+) {
+    var apiIdText by mutableStateOf(initialApiIdText)
+    var apiHashText by mutableStateOf(initialApiHashText)
+    var error by mutableStateOf(initialError)
+}
+
+private val CredentialsStateSaver =
+    listSaver<CredentialsState, String>(
+        save = { listOf(it.apiIdText, it.apiHashText, it.error?.name.orEmpty()) },
+        restore = { saved ->
+            CredentialsState(
+                initialApiIdText = saved[0],
+                initialApiHashText = saved[1],
+                initialError = saved[2].takeIf(String::isNotEmpty)?.let(Error::valueOf),
+            )
+        },
+    )
 
 private enum class Error {
     InvalidId,

@@ -196,6 +196,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    @Suppress("LongMethod") // The composition root: the settings gate, the theme and the credentials gate.
     override fun onCreate(savedInstanceState: Bundle?) =
         StartupTrace.section(StartupTrace.ACTIVITY_CREATE) {
             awaitSettingsTrace.begin()
@@ -244,19 +245,12 @@ class MainActivity : ComponentActivity() {
                     }
                     SecureWindowEffect(locked = locked, hideContent = hideContent, requests = secureRequests)
                     AppTheme(settings) {
-                        if (!credentialsConfigured || credentialsTimedOut) {
-                            ApiCredentialsScreen(
-                                initialApiId = if (credentialsConfigured) apiCredentials.apiId() else null,
-                                initialApiHash = if (credentialsConfigured) apiCredentials.apiHash() else "",
-                                showTimeoutMessage = credentialsTimedOut,
-                                onSave = { apiId, apiHash ->
-                                    apiCredentials.save(apiId, apiHash).also { saved ->
-                                        if (saved) restartApp()
-                                    }
-                                },
-                                onContinue = ::restartApp,
-                            )
-                        } else {
+                        CredentialsGate(
+                            apiCredentials = apiCredentials,
+                            credentialsConfigured = credentialsConfigured,
+                            showTimeoutMessage = credentialsTimedOut,
+                            onRestart = { restartApp() },
+                        ) {
                             CompositionLocalProvider(
                                 LocalAnimatedStickers provides animatedStickers,
                                 LocalSecureWindow provides secureRequests,
@@ -320,34 +314,6 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         accountRestart.onNewIntent(intent)
-    }
-
-    /**
-     * Starts the app again in a new process, so TDLib reads the API credentials the user just saved. The alarm holds
-     * the launch after this process dies: starting the activity here would start it in the process that is about to
-     * be killed.
-     */
-    private fun restartApp() {
-        val intent =
-            Intent(this, MainActivity::class.java).apply {
-                action = Intent.ACTION_MAIN
-                addCategory(Intent.CATEGORY_LAUNCHER)
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-            }
-        val pendingIntent =
-            PendingIntent.getActivity(
-                this,
-                RESTART_REQUEST_CODE,
-                intent,
-                PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-            )
-        val alarmManager = getSystemService(AlarmManager::class.java)
-        // Inexact on purpose: an exact alarm would need SCHEDULE_EXACT_ALARM, and the screen is on, so this fires at
-        // once anyway.
-        val triggerAt = System.currentTimeMillis() + RESTART_DELAY_MS
-        alarmManager.setAndAllowWhileIdle(AlarmManager.RTC, triggerAt, pendingIntent)
-        finishAffinity()
-        android.os.Process.killProcess(android.os.Process.myPid())
     }
 
     /**
@@ -419,18 +385,73 @@ class MainActivity : ComponentActivity() {
 
         /** How long TDLib may stay at `WaitTdlibParameters` before the credentials screen offers to change them. */
         const val API_CREDENTIALS_TIMEOUT_MS = 12_000L
-
-        /** How long the restart alarm waits before it starts the app again, after this process dies. */
-        const val RESTART_DELAY_MS = 250L
-
-        /** The restart alarm's request code. */
-        const val RESTART_REQUEST_CODE = 1
     }
+}
+
+/** How long the restart alarm waits before it starts the app again, after this process dies. */
+private const val RESTART_DELAY_MS = 250L
+
+/** The restart alarm's request code. */
+private const val RESTART_REQUEST_CODE = 1
+
+/**
+ * Starts the app again in a new process, so TDLib reads the API credentials the user just saved. The alarm holds the
+ * launch after this process dies: starting the activity here would start it in the process that is about to be killed.
+ */
+private fun ComponentActivity.restartApp() {
+    val intent =
+        Intent(this, MainActivity::class.java).apply {
+            action = Intent.ACTION_MAIN
+            addCategory(Intent.CATEGORY_LAUNCHER)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        }
+    val pendingIntent =
+        PendingIntent.getActivity(
+            this,
+            RESTART_REQUEST_CODE,
+            intent,
+            PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+    val alarmManager = getSystemService(AlarmManager::class.java)
+    // Inexact on purpose: an exact alarm would need SCHEDULE_EXACT_ALARM, and the screen is on, so this fires at once.
+    val triggerAt = System.currentTimeMillis() + RESTART_DELAY_MS
+    alarmManager.setAndAllowWhileIdle(AlarmManager.RTC, triggerAt, pendingIntent)
+    finishAffinity()
+    android.os.Process.killProcess(android.os.Process.myPid())
 }
 
 /** `core:ui`'s [LocalLockedChatGate] over [hiddenChatIds]: `feature:settings`' [LockedChatGate]. */
 private fun lockedChatGate(hiddenChatIds: StateFlow<Set<Long>?>): @Composable (Long, @Composable () -> Unit) -> Unit =
     { chatId, content -> LockedChatGate(hiddenChatIds, chatId, content) }
+
+/**
+ * Asks for the Telegram API credentials until TDLib has them, then shows [content]; also when TDLib stayed at
+ * `WaitTdlibParameters`, which means the saved ones did not work.
+ */
+@Composable
+private fun CredentialsGate(
+    apiCredentials: ApiCredentialsStore,
+    credentialsConfigured: Boolean,
+    showTimeoutMessage: Boolean,
+    onRestart: () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    if (!credentialsConfigured || showTimeoutMessage) {
+        ApiCredentialsScreen(
+            initialApiId = if (credentialsConfigured) apiCredentials.apiId() else null,
+            initialApiHash = if (credentialsConfigured) apiCredentials.apiHash() else "",
+            showTimeoutMessage = showTimeoutMessage,
+            onSave = { apiId, apiHash ->
+                apiCredentials.save(apiId, apiHash).also { saved ->
+                    if (saved) onRestart()
+                }
+            },
+            onContinue = onRestart,
+        )
+    } else {
+        content()
+    }
+}
 
 /** The app, with what a notification, a link or another app asked to open ([MainActivityViewModel]). */
 @Composable

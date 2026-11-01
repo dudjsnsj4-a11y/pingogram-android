@@ -50,11 +50,12 @@ class ApiCredentialsStore
             private const val FILE_NAME = "api_credentials"
             private const val KEY_API_ID = "api_id"
             private const val KEY_API_HASH = "api_hash"
+            private const val API_HASH_LENGTH = 32
 
             fun isValid(
                 apiId: Int,
                 apiHash: String,
-            ): Boolean = apiId > 0 && apiHash.length == 32 && apiHash.all { it.isHexDigit() }
+            ): Boolean = apiId > 0 && apiHash.length == API_HASH_LENGTH && apiHash.all { it.isHexDigit() }
 
             private fun Char.isHexDigit(): Boolean = this in '0'..'9' || this in 'a'..'f' || this in 'A'..'F'
         }
